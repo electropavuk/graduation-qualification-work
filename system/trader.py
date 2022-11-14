@@ -4,6 +4,7 @@ import numpy as np
 
 import experts
 import data
+import config
 
 
 
@@ -24,22 +25,26 @@ class BaseTrader:
 
 
 class PairTrader(BaseTrader):
-    def __init__(self, pair: str):
-        self.pair = pair
+    def __init__(self, cfg: config.Config):
+        self.pair = cfg.pair
         self.balance = self.initial_money = 100
         self.quantity = 0
-        self.trashold = .2
+        self.trashold = cfg.threshold
         self.estimations = []
         self.trades = []
         self._profits = []
         self.profit = None
         self.time, self.times = 0, []
-        self.commision = .00075
+        self.commision = cfg.fee
 
     def set_expert(self, expert: experts.PairExpert):
         self.expert = expert
         self.timeframes = [expert.timeframe for expert in self.expert._inner_experts]
-        self.min_timeframe = self.timeframes[0] if len(self.timeframes) == 1 else 'error'
+        tfs = ['1d', '24h', '12h', '8h', '6h', '4h', '2h', '1h', '30m', '15m', '5m', '3m', '1m']
+        self.min_timeframe = '1d'
+        for timeframe in self.timeframes:
+            if tfs.index(self.min_timeframe) < tfs.index(timeframe):
+                self.min_timeframe = timeframe
 
     def update(self, data: Mapping[str, Iterable]):
         """Update candlesticks data, update expert.
@@ -102,6 +107,7 @@ class PairTrader(BaseTrader):
         if not profits:
             return float('-inf')
         else:
-            mean = np.mean(profits)
+            # mean = np.mean(profits)
             # return mean * len(diff)
-            return (1 + mean / 100) ** (len(profits))
+            # return (1 + mean / 100) ** (len(profits))
+            return self.evaluate_profit()

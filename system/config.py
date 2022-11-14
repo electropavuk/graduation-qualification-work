@@ -2,6 +2,7 @@
 
 import json
 import collections
+import argparse
 from itertools import product
 
 import numpy as np
@@ -11,7 +12,183 @@ import indicators
 import rules
 
 
-def create_searchspace_config():
+
+class Config:
+    def __init__(self):
+        pair: str = 'BTC/USDT'
+        timeframe: str = ''
+        rule: str = 'MovingAverageCrossoverRule'
+        nleaves: int = 3
+        reestimate: bool = False
+        load_expert: str = ''
+        load_weights: str = bool
+        nepochs: int = 3
+        all_rules: bool = False
+        threshold: bool = False
+        fee: float = 0.0075
+
+    def to_json(self) -> str:
+        return json.dumps({
+            "pair": self.pair,
+            "timeframes": self.timeframes,
+            "rules": self.rules,
+            "nleaves": self.nleaves,
+            "reestimate": self.reestimate,
+            "load_expert": self.load_expert,
+            "load_weights": self.load_weights,
+            "nepochs": self.nepochs,
+            "threshold": self.threshold,
+            "fee": self.fee,
+        }, indent=4)
+
+    @classmethod
+    def new_arg_parser(cls) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+        parser.add_argument(
+            "--pair", type=str,
+            default='BTC/USDT',
+            help="Currency pair.",
+        )
+        parser.add_argument(
+            "--timeframe", type=str,
+            default='',
+            help="Trading timeframe.",
+        )
+        parser.add_argument(
+            "--rule", type=str,
+            default='',
+            help="Trading rule.",
+        )
+        parser.add_argument(
+            "--nleaves", type=int,
+            default=3,
+            help="Maximum number of RuleExperts.",
+        )
+        parser.add_argument(
+            "--reestimate", 
+            action='store_true',
+            help="Optimize expert from scratch.",
+        )
+        parser.add_argument(
+            "--load_expert", type=str,
+            default='',
+            help="Filename. Load expert from json file.",
+        )
+        parser.add_argument(
+            "--load_weights", 
+            action='store_true',
+            help="Load expert weights from file.",
+        )
+        parser.add_argument(
+            "--nepochs", type=int,
+            default=3,
+            help="Fit weights for n epochs.",
+        )
+        parser.add_argument(
+            "--all_rules",
+            action='store_true',
+            help="Use all available rules. (\
+        'MovingAverageCrossoverRule',\
+        'ExponentialMovingAverageCrossoverRule',\
+        'RelativeStrengthIndexTrasholdRule',\
+        'TripleExponentialDirectionChangeRule',\
+        'IchimokuKinkoHyoTenkanKijunCrossoverRule',\
+        'IchimokuKinkoHyoSenkouASenkouBCrossoverRule',\
+        'IchimokuKinkoHyoChikouCrossoverRule',\
+        'BollingerBandsLowerUpperCrossoverRule',\
+        'BollingerBandsLowerMidCrossoverRule',\
+        'BollingerBandsUpperMidCrossoverRule',\
+        'MovingAverageConvergenceDivergenceSignalLineCrossoverRule')",
+        )
+        parser.add_argument(
+            "--best_rules", 
+            action='store_true',
+            help="Use the rules: ('MovingAverageCrossoverRule',\
+                'RelativeStrengthIndexTrasholdRule',\
+                'TripleExponentialDirectionChangeRule',\
+                'BollingerBandsLowerMidCrossoverRule',\
+                'BollingerBandsUpperMidCrossoverRule',\
+                'MovingAverageConvergenceDivergenceSignalLineCrossoverRule')",
+        )
+        parser.add_argument(
+            "--best_timeframes",
+            action='store_true',
+            help="Use Timeframes: (1h, 4h, 1d)."
+        )
+        parser.add_argument(
+            "--threshold", type=float,
+            default=.2,
+            help="System sensativity. If confidence is above threshold the trade is made. Should be at range (0, 1)",
+        )
+        parser.add_argument(
+            "--fee", type=float,
+            default=0.0075,
+            help="Trading fee. Should be at range (0, 1)",
+        )
+        return parser
+
+    @classmethod
+    def from_args(cls):
+        """Creates Config from command line arguments."""
+
+        c = cls()
+
+        parser = cls.new_arg_parser()
+        args = parser.parse_args()
+
+        c.pair = args.pair
+        c.nleaves = args.nleaves
+        c.reestimate = args.reestimate
+        c.load_expert = args.load_expert
+        c.load_weights = args.load_weights
+        c.nepochs = args.nepochs
+        c.all_rules = args.all_rules
+        c.threshold = args.threshold
+        c.fee = args.fee
+        
+        c.timeframes = ['4h']
+
+        if args.rule:
+            c.rules = [args.rule]
+        elif args.best_rules:
+            c.rules = [
+                'MovingAverageCrossoverRule',
+                'RelativeStrengthIndexTrasholdRule',
+                'TripleExponentialDirectionChangeRule',
+                'BollingerBandsLowerMidCrossoverRule',
+                'BollingerBandsUpperMidCrossoverRule',
+                'MovingAverageConvergenceDivergenceSignalLineCrossoverRule',
+            ]
+        elif args.all_rules:
+            c.rules = [
+                'MovingAverageCrossoverRule',
+                'ExponentialMovingAverageCrossoverRule',
+                'RelativeStrengthIndexTrasholdRule',
+                'TripleExponentialDirectionChangeRule',
+                'IchimokuKinkoHyoTenkanKijunCrossoverRule',
+                'IchimokuKinkoHyoSenkouASenkouBCrossoverRule',
+                'IchimokuKinkoHyoChikouCrossoverRule',
+                'BollingerBandsLowerUpperCrossoverRule',
+                'BollingerBandsLowerMidCrossoverRule',
+                'BollingerBandsUpperMidCrossoverRule',
+                'MovingAverageConvergenceDivergenceSignalLineCrossoverRule',
+            ]
+        else:
+            print("No rule set specified, using the default - MovingAverageCrossoverRule")
+            c.rules = ['MovingAverageCrossoverRule']
+
+        if args.timeframe:
+            c.timeframes = [args.timeframe]
+        elif args.best_timeframes:
+            c.timeframes = ['1h', '4h', '1d', '5m']
+        else:
+            print("No timeframe specified, using the default - 4h")
+            c.timeframes = ['4h']
+        
+        return c
+
+def constract_searchspace():
     """Writes json file with parameters searchspace.
 
     Structure:
@@ -34,25 +211,23 @@ def create_searchspace_config():
         space = list(sorted(set(np.logspace(start, stop, num, dtype=dtype))))
         return list(map(dtype, space))
 
-    cfg_file = open('searchspace.json', 'w')
-
     nested_dict = lambda: collections.defaultdict(nested_dict)
     data = collections.defaultdict(nested_dict)
 
     ranges = {
-        '1m': get_logspace(10, 360, 25),
-        '5m': get_logspace(8, 288, 25),
-        '15m': get_logspace(8, 192, 25),
-        '30m': get_logspace(8, 336, 25),
-        '1h': get_logspace(6, 168, 25),
-        '2h': get_logspace(6, 336, 25),
-        '4h': get_logspace(6, 180, 25),
-        '6h': get_logspace(6, 120, 25),
-        '8h': get_logspace(6, 90, 25),
-        '12h': get_logspace(6, 180, 25),
+        '1m': get_logspace(10, 360, 7),
+        '5m': get_logspace(8, 288, 7),
+        '15m': get_logspace(8, 192, 7),
+        '30m': get_logspace(8, 336, 7),
+        '1h': get_logspace(6, 168, 7),
+        '2h': get_logspace(6, 336, 7),
+        '4h': get_logspace(6, 180, 7),
+        '6h': get_logspace(6, 120, 7),
+        '8h': get_logspace(6, 90, 7),
+        '12h': get_logspace(6, 180, 7),
         '1d': get_logspace(7, 365, 25),
     }
-    patience = get_logspace(1, 50, 11)
+    patience = get_logspace(1, 50, 5)
 
     indicator_names = [
         'PriceIndicator',
@@ -102,14 +277,14 @@ def create_searchspace_config():
 
         rule_parameters = {rule: {'patience': patience} for rule in rule_names}
         rule_parameters['RelativeStrengthIndexTrasholdRule'] |=  {
-            'lower': list(range(20, 45, 10)),
-            'upper': list(range(60, 85, 10)),
+            'lower': list(range(20, 45, 5)),
+            'upper': list(range(60, 85, 5)),
         }
 
         indicator_parameters = {indicator: {'length': space} for indicator in indicator_names}
         indicator_parameters['PriceIndicator'] = {}
         indicator_parameters['IchimokuKinkoHyoIndicator'] = {'short': space, 'long': space}
-        indicator_parameters['BollingerBandsIndicator'] = {'length': space, 'mult': get_logspace(1.5, 3, 11, float)}
+        indicator_parameters['BollingerBandsIndicator'] = {'length': space, 'mult': get_logspace(1.5, 3, 5, float)}
         indicator_parameters['MovingAverageConvergenceDivergenceIndicator'] = {'long': space, 'signal': space}
 
         for rule in rule_names:
@@ -118,7 +293,7 @@ def create_searchspace_config():
                 inds.append({'name': indicator, 'parameters': indicator_parameters[indicator]})
             timeframe[rule] = {'parameters': rule_parameters[rule], 'indicators': inds}
 
-    json.dump(data, cfg_file, indent=4)
+    return data
 
 def get_experts_from_searchspace(timeframe: str,
                                  rule_name: str,
@@ -225,4 +400,5 @@ def deserialize_expert_from_json(filename: str = 'expert.json'):
 
 
 if __name__ == '__main__':
-    create_searchspace_config()
+    print(Config.from_args().to_json())
+    constract_searchspace()

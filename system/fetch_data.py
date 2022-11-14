@@ -8,7 +8,8 @@ from binance import Client
 import pandas as pd
 
 def get_history(symbol, interval):
-    period = '4 years' if interval != '1m' else '3 months'
+    # period = '4 years' if interval != '1m' else '3 months'
+    period = '4 years'
     klines = client.get_historical_klines(symbol=symbol, interval=interval, start_str=period)
     labels = ['Open time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Close time', 
               'Quote asset volume', 'Number of trades', 
@@ -24,7 +25,10 @@ secret_key = os.getenv('READONLY_SECRET_KEY')
 client = Client(api_key, secret_key)
 
 timeframes = ['1d', '12h', '8h', '6h', '4h', '2h', '1h', '30m', '15m', '5m', '3m']
-pairs = ['BTCUSDT', 'ETHUSDT']
+# timeframes = ['1d', '12h', '8h', '6h', '4h']
+timeframes = ['1m']
+# pairs = ['BTCUSDT', 'ETHUSDT']
+pairs = ['BTCUSDT']
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 for pair in pairs:
